@@ -5,6 +5,14 @@
 #include <ESP8266WebServer.h>
 #include <math.h>
 
+// Calibration iterations
+#define NUM_ITERATIONS 10
+
+#define CONSTANT_OFFSET_Z 0.27
+
+float sumAccXBias = 0, sumAccYBias = 0, sumAccZBias = 0;
+float sumGyrXBias = 0, sumGyrYBias = 0, sumGyrZBias = 0;
+
 // Average human walking frequency aprox. 2-3Hz)
 #define STEP_DELAY 250
 
@@ -14,8 +22,6 @@
 
 // Main loop rate
 #define LOOP_RATE 10
-
-#define CONSTANT_OFFSET_Z 0.27
 
 #define USERNAME "admin"
 #define PASSWORD "admin"
@@ -101,7 +107,6 @@ void MPU9250_init() {
   delay(100);
   Serial.println("Accel configured");
 }
-
 
 bool is_authentified(){
   Serial.println("Enter is_authentified");
@@ -229,6 +234,38 @@ float average(float x, float y) {
   return (x +y)/2;
 }
 
+void print_calibration() {
+    Serial.println("< calibration parameters >");
+    Serial.println("accel bias [g]: ");
+    Serial.print(mpu.getAccBiasX() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
+    Serial.print(", ");
+    Serial.print(mpu.getAccBiasY() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
+    Serial.print(", ");
+    Serial.print(mpu.getAccBiasZ() * 1000.f / (float)MPU9250::CALIB_ACCEL_SENSITIVITY);
+    Serial.println();
+    Serial.println("gyro bias [deg/s]: ");
+    Serial.print(mpu.getGyroBiasX() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
+    Serial.print(", ");
+    Serial.print(mpu.getGyroBiasY() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
+    Serial.print(", ");
+    Serial.print(mpu.getGyroBiasZ() / (float)MPU9250::CALIB_GYRO_SENSITIVITY);
+    Serial.println();
+    Serial.println("mag bias [mG]: ");
+    Serial.print(mpu.getMagBiasX());
+    Serial.print(", ");
+    Serial.print(mpu.getMagBiasY());
+    Serial.print(", ");
+    Serial.print(mpu.getMagBiasZ());
+    Serial.println();
+    Serial.println("mag scale []: ");
+    Serial.print(mpu.getMagScaleX());
+    Serial.print(", ");
+    Serial.print(mpu.getMagScaleY());
+    Serial.print(", ");
+    Serial.print(mpu.getMagScaleZ());
+    Serial.println();
+}
+
 // SETUP FUNCTION
 void setup() {
   Serial.begin(115200);
@@ -242,9 +279,13 @@ void setup() {
     }
   }
 
-  // Calibration offset
-  mpu.setAccBias(7.9, -14.4, 280.3);
-  mpu.setGyroBias(-1.8, 0.05, -0.15);
+  // Calibration
+  Serial.println("Accel Gyro calibration will start in 5sec.");
+  Serial.println("Please leave the device still on the flat plane.");
+  mpu.verbose(true);
+  delay(5000);
+  mpu.calibrateAccelGyro();
+  print_calibration();
 
   if (MODE == 0) { setupWiFiAP(); }
   else if (MODE == 1) { setupWiFiSTA(); }
@@ -271,20 +312,20 @@ void setup() {
 }
 
 void loop() {
-   // Linear Acceleration has gravity acceleration substracted
-   if (mpu.update()) {
+  // Linear Acceleration has gravity acceleration substracted
+  if (mpu.update()) {
     accel_x = mpu.getAccX();
     //accel_x = mpu.getLinearAccX();
     accel_x = average(accel_x, paccel_x);
     paccel_x = accel_x;
     //Serial.println(accel_x);
-    //accel_y = mpu.getAccY();
-    accel_y = mpu.getLinearAccY();
+    accel_y = mpu.getAccY();
+    //accel_y = mpu.getLinearAccY();
     accel_y = average(accel_y, paccel_y);
     paccel_y = accel_y;
     //Serial.println(accel_y);
-    //accel_z = mpu.getAccZ();
-    accel_z = mpu.getLinearAccZ() - CONSTANT_OFFSET_Z;
+    accel_z = mpu.getAccZ() - CONSTANT_OFFSET_Z;
+    //accel_z = mpu.getLinearAccZ();
     //Serial.println(accel_z);
     accel_z = average(accel_z, paccel_z);
     paccel_z = accel_z;
@@ -294,7 +335,7 @@ void loop() {
   }
   
   server.handleClient();
-  float magnitude = sqrt(pow(accel_x, 2) + pow(accel_y, 2) + pow(accel_z, 2));
+  float magnitude = sqrt(pow(accel_x, 2) + pow(accel_y, 2) + pow(accel_z, 2)) - 1; //Subtract gravitation
   prevMagnitude = magnitude;
   //Serial.println(magnitude);
   /*
