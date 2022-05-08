@@ -1,0 +1,5 @@
+- Program preprosto zaženite v Arduino okolju
+- Preverite IP naslov, ki se vam izpiše na Serial Monitor
+- Vpišite naslov v spletni brskalnik, privzeti port je 80
+- Za vpis, vpišite uporabniško ime admin in geslo admin
+- Nato vas stran preusmeri na glavno stran
